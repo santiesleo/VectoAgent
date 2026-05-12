@@ -4,6 +4,7 @@
 # Orquestación LangChain
 langchain>=0.3.0
 langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
 
 # LLM y embeddings — Google Gemini
 langchain-google-genai>=2.0.0
@@ -22,3 +23,6 @@ datasets>=2.0.0
 
 # Variables de entorno
 python-dotenv>=1.0.0
+
+# Interfaz de chat
+streamlit>=1.37.0

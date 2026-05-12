@@ -11,11 +11,9 @@ load_dotenv()
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from data.knowledge_base import DOCUMENTS
-from src.agent import build_agent, invoke_agent
-from src.embeddings import get_embeddings
+from src.agent import invoke_agent
 from src.evaluation import evaluate_rag
-from src.vector_store import get_retriever, init_vectorstore
+from src.pipeline import build_runtime
 
 
 def generate_ground_truth(question: str, contexts: list[str]) -> str:
@@ -46,29 +44,12 @@ def main():
     print("       VectoAgent — Agente ReAct con RAG")
     print("=" * 60 + "\n")
 
-    # ── 1. Inicializar embeddings ──────────────────────────────────────────
-    print("[1/4] Inicializando embeddings de Google Generative AI...")
+    # ── 1-3. Inicializar pipeline ──────────────────────────────────────────
+    print("[1/4] Inicializando pipeline (embeddings + vector store + agente)...")
     try:
-        embeddings = get_embeddings()
+        agent_executor, retriever = build_runtime()
     except Exception as e:
-        print(f"ERROR al inicializar embeddings: {e}")
-        return
-
-    # ── 2. Inicializar vector store ────────────────────────────────────────
-    print("[2/4] Inicializando vector store (ChromaDB)...")
-    try:
-        vectorstore = init_vectorstore(DOCUMENTS, embeddings)
-        retriever = get_retriever(vectorstore, k=3)
-    except Exception as e:
-        print(f"ERROR al inicializar ChromaDB: {e}")
-        return
-
-    # ── 3. Construir el agente ─────────────────────────────────────────────
-    print("[3/4] Construyendo agente ReAct con Gemini 2.5 Flash...")
-    try:
-        agent_executor = build_agent(retriever)
-    except Exception as e:
-        print(f"ERROR al construir el agente: {e}")
+        print(f"ERROR al inicializar pipeline: {e}")
         return
 
     # ── Pregunta libre del usuario ─────────────────────────────────────────
