@@ -1,0 +1,31 @@
+# Variables de entorno — nunca subir al repositorio
+.env
+
+# Base de datos vectorial generada localmente
+chroma_db/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Logs y temporales
+*.log
+*.tmp
