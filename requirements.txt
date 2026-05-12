@@ -1,0 +1,24 @@
+# Dependencias de VectoAgent
+# Instalar con: pip install -r requirements.txt
+
+# Orquestación LangChain
+langchain>=0.3.0
+langchain-community>=0.3.0
+
+# LLM y embeddings — Google Gemini
+langchain-google-genai>=2.0.0
+
+# Vector store — ChromaDB via LangChain
+langchain-chroma>=0.1.4
+chromadb>=0.5.0
+
+# Trazabilidad — LangSmith
+langsmith>=0.1.0
+langchainhub>=0.1.0
+
+# Evaluación RAG
+ragas>=0.2.0
+datasets>=2.0.0
+
+# Variables de entorno
+python-dotenv>=1.0.0
