@@ -1,16 +1,44 @@
 # Punto de entrada principal del agente ReAct con RAG
 # Ejecuta el pipeline completo: embeddings → vector store → agente → evaluación RAGAS
 
+import os
+
 from dotenv import load_dotenv
 
 # Cargar variables de entorno ANTES de importar cualquier módulo que las necesite
 load_dotenv()
+
+from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from data.knowledge_base import DOCUMENTS
 from src.agent import build_agent, invoke_agent
 from src.embeddings import get_embeddings
 from src.evaluation import evaluate_rag
 from src.vector_store import get_retriever, init_vectorstore
+
+
+def generate_ground_truth(question: str, contexts: list[str]) -> str:
+    """Genera un ground truth de referencia usando el LLM a partir de los contextos recuperados."""
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0,
+        google_api_key=os.getenv("GOOGLE_API_KEY"),
+    )
+    contexto_unido = "\n\n".join(contexts)
+    prompt = (
+        f"Basándote únicamente en los siguientes fragmentos de texto, "
+        f"escribe una respuesta de referencia concisa y completa para la pregunta: '{question}'\n\n"
+        f"Fragmentos:\n{contexto_unido}\n\n"
+        f"Respuesta de referencia:"
+    )
+    result = llm.invoke([HumanMessage(content=prompt)])
+    content = result.content
+    if isinstance(content, list):
+        return " ".join(
+            b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+        ).strip()
+    return str(content).strip()
 
 
 def main():
@@ -35,7 +63,7 @@ def main():
         print(f"ERROR al inicializar ChromaDB: {e}")
         return
 
-    # ── 3. Construir y ejecutar el agente ──────────────────────────────────
+    # ── 3. Construir el agente ─────────────────────────────────────────────
     print("[3/4] Construyendo agente ReAct con Gemini 2.5 Flash...")
     try:
         agent_executor = build_agent(retriever)
@@ -43,10 +71,15 @@ def main():
         print(f"ERROR al construir el agente: {e}")
         return
 
-    question = "¿Quién es Simón Bolívar?"
-
+    # ── Pregunta libre del usuario ─────────────────────────────────────────
     print(f"\n{'─' * 60}")
-    print(f"Pregunta: {question}")
+    print("Puedes preguntar sobre Simón Bolívar, José de San Martín,")
+    print("Antonio José de Sucre o Francisco de Paula Santander.")
+    print(f"{'─' * 60}")
+    question = input("Tu pregunta: ").strip()
+    if not question:
+        print("No ingresaste ninguna pregunta. Saliendo.")
+        return
     print(f"{'─' * 60}\n")
 
     try:
@@ -63,7 +96,6 @@ def main():
     # ── 4. Evaluar con RAGAS ───────────────────────────────────────────────
     print(f"\n[4/4] Evaluando con RAGAS...")
 
-    # Recuperar los documentos que usó el retriever para esta pregunta
     try:
         retrieved_docs = retriever.invoke(question)
         contexts = [doc.page_content for doc in retrieved_docs]
@@ -71,13 +103,13 @@ def main():
         print(f"ERROR al recuperar documentos para evaluación: {e}")
         return
 
-    # Respuesta de referencia (ground truth) para las métricas de RAGAS
-    ground_truth = (
-        "Simón Bolívar fue un militar y político venezolano nacido en Caracas en 1783. "
-        "Es conocido como 'El Libertador' por liderar la independencia de Venezuela, "
-        "Colombia, Ecuador, Perú y Bolivia del dominio español. Fundó la República de "
-        "Gran Colombia en 1819 y murió en Santa Marta, Colombia, el 17 de diciembre de 1830."
-    )
+    # Generar ground truth dinámico a partir de los contextos recuperados
+    try:
+        print("[RAGAS] Generando ground truth automático...")
+        ground_truth = generate_ground_truth(question, contexts)
+    except Exception as e:
+        print(f"ERROR al generar ground truth: {e}")
+        return
 
     try:
         evaluate_rag(
