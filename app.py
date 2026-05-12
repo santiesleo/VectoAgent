@@ -28,8 +28,8 @@ def init_state() -> None:
             {
                 "role": "assistant",
                 "content": (
-                    "Hola. Soy VectoAgent. Preguntame sobre Bolivar, "
-                    "San Martin, Sucre o Santander."
+                    "Hola. Soy VectoAgent. Preguntame sobre cualquier tema "
+                    "disponible en la base de conocimiento."
                 ),
             }
         ]
@@ -52,7 +52,7 @@ def render_sidebar() -> None:
 
 def main() -> None:
     st.title("VectoAgent")
-    st.caption("Chat RAG sobre independencia latinoamericana")
+    st.caption("Chat RAG basado en documentos")
 
     init_state()
     render_sidebar()

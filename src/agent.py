@@ -8,6 +8,8 @@ from langchain_core.messages import HumanMessage
 from langchain_core.tools.retriever import create_retriever_tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from src.mcp_client import get_mcp_tools
+
 
 def build_agent(retriever):
     """
@@ -36,18 +38,23 @@ def build_agent(retriever):
         name="buscar_en_base_de_conocimiento",
         description=(
             "Busca información relevante en la base de conocimiento vectorial. "
-            "Úsalo siempre que necesites información sobre personajes históricos."
+            "Úsala para responder preguntas basándote únicamente en los documentos."
         ),
     )
+
+    # Cargar herramientas MCP (Google Calendar) si están configuradas
+    mcp_tools = get_mcp_tools()
+    all_tools = [retriever_tool] + mcp_tools
 
     # Construir el agente con la nueva API de LangChain 1.x
     agent = create_agent(
         model=llm,
-        tools=[retriever_tool],
+        tools=all_tools,
         system_prompt=(
-            "Eres un asistente experto en historia latinoamericana. "
-            "Siempre usa la herramienta de búsqueda para responder preguntas "
-            "sobre personajes históricos antes de dar una respuesta final."
+            "Eres un asistente que responde preguntas únicamente basándose en los documentos "
+            "de la base de conocimiento. "
+            "Siempre usa la herramienta de búsqueda antes de dar una respuesta. "
+            + ("Puedes crear y listar eventos en Google Calendar cuando el usuario lo solicite explícitamente y confirme la acción." if mcp_tools else "")
         ),
     )
 

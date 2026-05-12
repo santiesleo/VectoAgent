@@ -54,8 +54,7 @@ def main():
 
     # ── Pregunta libre del usuario ─────────────────────────────────────────
     print(f"\n{'─' * 60}")
-    print("Puedes preguntar sobre Simón Bolívar, José de San Martín,")
-    print("Antonio José de Sucre o Francisco de Paula Santander.")
+    print("Puedes preguntar sobre cualquier tema disponible en la base de conocimiento.")
     print(f"{'─' * 60}")
     question = input("Tu pregunta: ").strip()
     if not question:
