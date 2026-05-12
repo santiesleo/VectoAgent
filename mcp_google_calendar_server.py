@@ -1,6 +1,7 @@
 """MCP Server para Google Calendar con OAuth."""
 
 import os
+import sys
 import json
 from datetime import datetime
 from typing import Any
@@ -147,7 +148,7 @@ async def eliminar_evento(event_id: str) -> str:
 
 
 def main():
-    print("[MCP Google Calendar Server] Iniciando servidor...", flush=True)
+    print("[MCP Google Calendar Server] Iniciando servidor...", file=sys.stderr, flush=True)
     mcp.run(transport="stdio")
 
 

@@ -1,61 +1,72 @@
 """Wrapper para conectar con MCP servers (ej: Google Calendar)."""
 
+import asyncio
 import os
 import threading
-import asyncio
-from typing import Any, Optional
 from contextlib import AsyncExitStack
+from typing import Any, Optional
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
 class MCPClientManager:
-    """Gestiona conexion a un server MCP via stdio."""
+    """
+    Gestiona conexión a un server MCP via stdio.
+
+    Mantiene un event loop dedicado corriendo en un hilo de fondo para que
+    la sesión MCP (y sus context managers async) permanezcan vivos entre llamadas.
+    """
 
     def __init__(self, command: str, args: list[str], env: dict | None = None):
         self.command = command
         self.args = args
         self.env = env or {}
-        self._exit_stack: Optional[AsyncExitStack] = None
-        self._stdio = None
-        self._write = None
+        self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
+        self._thread: Optional[threading.Thread] = None
         self._session: Optional[ClientSession] = None
-        self._lock = threading.Lock()
+        self._exit_stack: Optional[AsyncExitStack] = None
+        self._ready = threading.Event()
+        self._start_error: Optional[Exception] = None
 
     def start(self):
-        """Inicia la conexion al server MCP (thread-safe)."""
-        def _run():
-            async def _async_start():
-                self._exit_stack = AsyncExitStack()
-                params = StdioServerParameters(
-                    command=self.command,
-                    args=self.args,
-                    env=self.env,
-                )
-                stdio_transport = await self._exit_stack.enter_async_context(stdio_client(params))
-                self._stdio, self._write = stdio_transport
-                self._session = await self._exit_stack.enter_async_context(
-                    ClientSession(self._stdio, self._write)
-                )
-                await self._session.initialize()
+        """Arranca el loop en un hilo dedicado e inicializa la sesión MCP."""
+        self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
+        self._thread.start()
 
-            asyncio.run(_async_start())
+        future = asyncio.run_coroutine_threadsafe(self._async_start(), self._loop)
+        try:
+            future.result(timeout=30)
+        except Exception as e:
+            raise RuntimeError(f"Error al iniciar servidor MCP: {e}") from e
 
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
-        thread.join(timeout=30)
-        if not self._session:
-            raise RuntimeError("Timeout al iniciar servidor MCP")
+    async def _async_start(self):
+        """Abre el transporte stdio y la sesión, y las deja vivas en el loop."""
+        self._exit_stack = AsyncExitStack()
+        params = StdioServerParameters(
+            command=self.command,
+            args=self.args,
+            env=self.env,
+        )
+        stdio, write = await self._exit_stack.enter_async_context(stdio_client(params))
+        self._session = await self._exit_stack.enter_async_context(
+            ClientSession(stdio, write)
+        )
+        await self._session.initialize()
 
     def list_tools(self) -> list:
         """Lista herramientas disponibles en el server."""
-        result = asyncio.run(self._session.list_tools())
-        return result.tools
+        future = asyncio.run_coroutine_threadsafe(
+            self._session.list_tools(), self._loop
+        )
+        return future.result(timeout=30).tools
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
-        """Llama a una herramienta del server."""
-        result = asyncio.run(self._session.call_tool(name, arguments))
+        """Llama a una herramienta del server y retorna el resultado como string."""
+        future = asyncio.run_coroutine_threadsafe(
+            self._session.call_tool(name, arguments), self._loop
+        )
+        result = future.result(timeout=30)
         if result.content:
             return "".join(
                 block.text for block in result.content if hasattr(block, "text")
@@ -63,16 +74,20 @@ class MCPClientManager:
         return "Sin respuesta"
 
     def close(self):
-        """Cierra la conexion."""
+        """Cierra la sesión y detiene el loop dedicado."""
         if self._exit_stack:
+            future = asyncio.run_coroutine_threadsafe(
+                self._exit_stack.aclose(), self._loop
+            )
             try:
-                asyncio.run(self._exit_stack.aclose())
+                future.result(timeout=10)
             except Exception:
                 pass
+        self._loop.call_soon_threadsafe(self._loop.stop)
 
 
 def get_mcp_client() -> Optional[MCPClientManager]:
-    """Crea cliente MCP si esta configurado en .env."""
+    """Crea cliente MCP si está configurado en .env."""
     enabled = os.getenv("MCP_GCAL_ENABLED", "false").lower() == "true"
     if not enabled:
         return None
@@ -121,13 +136,13 @@ def get_mcp_tools():
     tools = [
         StructuredTool(
             name="crear_evento_calendario",
-            description="Crea un evento en Google Calendar. USE SOLO cuando el usuario confirme explicitamente.",
+            description="Crea un evento en Google Calendar.",
             args_schema=EventInput,
             func=lambda **kwargs: client.call_tool("crear_evento", kwargs),
         ),
         StructuredTool(
             name="listar_eventos_calendario",
-            description="Lista los proximos eventos del calendario de Google.",
+            description="Lista los próximos eventos del calendario de Google.",
             args_schema=ListInput,
             func=lambda **kwargs: client.call_tool("listar_eventos", kwargs),
         ),

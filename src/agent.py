@@ -51,10 +51,16 @@ def build_agent(retriever):
         model=llm,
         tools=all_tools,
         system_prompt=(
-            "Eres un asistente que responde preguntas únicamente basándose en los documentos "
-            "de la base de conocimiento. "
-            "Siempre usa la herramienta de búsqueda antes de dar una respuesta. "
-            + ("Puedes crear y listar eventos en Google Calendar cuando el usuario lo solicite explícitamente y confirme la acción." if mcp_tools else "")
+            "Eres un asistente experto en la Copa Mundial FIFA 2026. "
+            "SIEMPRE usa primero buscar_en_base_de_conocimiento para obtener la información. "
+            + (
+                "Cuando el usuario pida agregar partidos al calendario, "
+                "usa la información que ya recuperaste de la base de conocimiento para rellenar "
+                "directamente los campos del evento (título, fecha, hora, ubicación) "
+                "sin pedirle más datos al usuario. "
+                "Crea los eventos uno por uno con crear_evento_calendario."
+                if mcp_tools else ""
+            )
         ),
     )
 
